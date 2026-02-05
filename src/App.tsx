@@ -1,89 +1,66 @@
-import React, { useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import React, { useState, useEffect } from 'react';
+// Imports des composants - VERIFIE BIEN LES MAJUSCULES SUR GITHUB
+import { LandingPage } from './components/LandingPage';
+import { AuthView } from './components/AuthView';
+import { DashboardView } from './components/DashboardView';
+import { Navbar } from './components/Navbar';
+import { ViewState, User, UserTier, StockAnalysis } from './types';
 
-// --- APPLICATION ---
-const App = () => {
-  const [view, setView] = useState('LANDING');
-  const [user, setUser] = useState(null);
+const ADMIN_EMAILS = ['pierre.benadon@gmail.com'];
 
-  const handleLogin = () => {
-    setUser({ email: "investisseur@lucid.fr" });
+const App: React.FC = () => {
+  const [view, setView] = useState<ViewState>('LANDING');
+  const [user, setUser] = useState<User | null>(null);
+  const [globalAnalyses, setGlobalAnalyses] = useState<StockAnalysis[]>([]);
+
+  // Simulation de chargement des données
+  useEffect(() => {
+    setGlobalAnalyses([
+      { ticker: 'NVDA', name: 'Nvidia', sector: 'TECH', importanceRank: 1, lastUpdate: '02/2026', thesis: 'IA Boom' },
+      { ticker: 'BTC', name: 'Bitcoin', sector: 'CRYPTO', importanceRank: 2, lastUpdate: '02/2026', thesis: 'Digital Gold' }
+    ]);
+  }, []);
+
+  const handleLogin = (email: string) => {
+    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
+    const newUser: User = {
+      id: '1',
+      email,
+      tier: UserTier.ALPHA,
+      role: isAdmin ? 'ADMIN' : 'USER',
+      status: 'ACTIVE',
+      hasCryptoOption: true,
+      alphaOppsRemaining: 5,
+      trackedOpportunities: [],
+      claimedMonths: [],
+      signupDate: '05/02/2026'
+    };
+    setUser(newUser);
     setView('DASHBOARD');
   };
 
   return (
-    <div className="min-h-screen">
-      {/* NAVBAR */}
-      <nav className="fixed top-0 w-full h-16 bg-white/80 backdrop-blur-md border-b flex justify-between items-center px-8 z-50">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
-          <div className="bg-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center text-white font-black">L</div>
-          <span className="font-black text-xl tracking-tighter">LUCID INVEST</span>
-        </div>
-        <button onClick={() => setView('AUTH')} className="text-sm font-bold text-slate-600 hover:text-indigo-600">
-          {user ? user.email : "Connexion"}
-        </button>
-      </nav>
-
-      <main className="pt-32 px-6 max-w-6xl mx-auto">
-        {/* VUE : LANDING */}
-        {view === 'LANDING' && (
-          <div className="text-center">
-            <h1 className="text-7xl font-black mb-8 leading-tight">L'investissement<br/><span className="text-indigo-600">Lucide.</span></h1>
-            <p className="text-xl text-slate-500 mb-12 max-w-xl mx-auto">Détectez les opportunités de marché avant l'explosion grâce au Radar Alpha.</p>
-            <button onClick={() => setView('AUTH')} className="bg-indigo-600 text-white px-12 py-5 rounded-2xl font-black text-xl shadow-2xl hover:scale-105 transition">ACCÉDER AU RADAR</button>
-          </div>
-        )}
-
-        {/* VUE : AUTH */}
+    <div className="min-h-screen bg-slate-50">
+      <Navbar view={view} setView={setView} user={user} onLogout={() => {setUser(null); setView('LANDING');}} />
+      
+      <main className={view === 'LANDING' ? '' : 'pt-20'}>
+        {view === 'LANDING' && <LandingPage onSelectPlan={() => setView('AUTH')} />}
+        
         {view === 'AUTH' && (
-          <div className="max-w-md mx-auto bg-white p-12 rounded-[3rem] shadow-2xl border border-slate-100">
-            <h2 className="text-3xl font-black mb-8 text-center">Bienvenue</h2>
-            <div className="space-y-4">
-              <input type="email" placeholder="Email" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-600" />
-              <button onClick={handleLogin} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg">SE CONNECTER</button>
-            </div>
-          </div>
+          <AuthView onLogin={handleLogin} onBack={() => setView('LANDING')} />
         )}
 
-        {/* VUE : DASHBOARD */}
-        {view === 'DASHBOARD' && (
-          <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <div className="flex justify-between items-center mb-12">
-              <h2 className="text-4xl font-black">RADAR <span className="text-indigo-600">ALPHA</span></h2>
-              <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full font-bold text-sm uppercase tracking-widest">Plan Alpha</span>
-            </div>
-            
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition">
-                <div className="flex justify-between items-start mb-6">
-                  <span className="bg-slate-100 px-4 py-1 rounded-full text-[10px] font-black uppercase">Technologie</span>
-                  <span className="text-indigo-600 font-black text-xl">NVDA</span>
-                </div>
-                <h3 className="text-2xl font-bold mb-4">NVIDIA Corporation</h3>
-                <p className="text-slate-500 mb-8 italic">"Domination confirmée sur le segment IA Blackwell, le cycle ne fait que commencer."</p>
-                <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase tracking-widest text-xs">Ouvrir la thèse</button>
-              </div>
-
-              <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition">
-                <div className="flex justify-between items-start mb-6">
-                  <span className="bg-amber-100 text-amber-700 px-4 py-1 rounded-full text-[10px] font-black uppercase">Crypto</span>
-                  <span className="text-indigo-600 font-black text-xl">BTC</span>
-                </div>
-                <h3 className="text-2xl font-bold mb-4">Bitcoin</h3>
-                <p className="text-slate-500 mb-8 italic">"Phase d'accumulation institutionnelle majeure détectée sur les ETF."</p>
-                <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase tracking-widest text-xs">Ouvrir la thèse</button>
-              </div>
-            </div>
-          </div>
+        {view === 'DASHBOARD' && user && (
+          <DashboardView 
+            user={user} 
+            globalAnalyses={globalAnalyses} 
+            setView={setView}
+            onReadThesis={(a) => console.log(a)}
+          />
         )}
       </main>
     </div>
   );
 };
-
-// Injection dans le DOM
-const container = document.getElementById('root');
-const root = createRoot(container!);
-root.render(<App />);
 
 export default App;
