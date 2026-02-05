@@ -1,50 +1,147 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+// Import des composants que tu as dans ton dossier /components
+import { LandingPage } from './components/LandingPage';
+import { AuthView } from './components/AuthView';
+import { DashboardView } from './components/DashboardView';
+import { AccountView } from './components/AccountView';
+import { AnalysisView } from './components/AnalysisView';
+import { GuideView } from './components/GuideView';
+import { AdminBackoffice } from './components/AdminBackoffice';
+import { AlphaOpportunitiesView } from './components/AlphaOpportunitiesView';
+import { Navbar } from './components/Navbar';
 
-// --- APP COMPONENT ---
-export default function App() {
-  const [view, setView] = useState('LANDING');
+import { ViewState, User, UserTier, StockAnalysis } from './types';
+import { dbService } from './services/dbService';
+import { automationService, getCurrentMonthYear } from './services/automationService';
+
+const ADMIN_EMAILS = ['pierre.benadon@gmail.com', 'admin@lucidinvest.fr'];
+
+const App: React.FC = () => {
+  const [view, setView] = useState<ViewState>('LANDING');
+  const [user, setUser] = useState<User | null>(null);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<StockAnalysis | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [globalAnalyses, setGlobalAnalyses] = useState<StockAnalysis[]>([]);
+
+  // Initialisation des données au chargement
+  useEffect(() => {
+    const initApp = async () => {
+      const currentAnalyses = dbService.getAnalyses();
+      setGlobalAnalyses(currentAnalyses);
+      
+      const sessionUser = dbService.getCurrentUser();
+      if (sessionUser) setUser(sessionUser);
+    };
+    initApp();
+  }, []);
+
+  // Gestion de la connexion
+  const handleLogin = (email: string, pass: string, tier: UserTier) => {
+    setIsLoading(true);
+    setTimeout(() => {
+      const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
+      const newUser: User = {
+        id: Math.random().toString(36).substr(2, 9),
+        email,
+        tier: isAdmin ? UserTier.ALPHA : tier,
+        role: isAdmin ? 'ADMIN' : 'USER',
+        status: 'ACTIVE',
+        hasCryptoOption: true,
+        alphaOppsRemaining: 5,
+        trackedOpportunities: [],
+        claimedMonths: [getCurrentMonthYear()],
+        signupDate: new Date().toLocaleDateString()
+      };
+      setUser(newUser);
+      dbService.saveUser(newUser);
+      dbService.setSession(newUser);
+      setView('DASHBOARD');
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  const handleLogout = () => {
+    dbService.logout();
+    setUser(null);
+    setView('LANDING');
+  };
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      backgroundColor: '#f8fafc', 
-      fontFamily: 'sans-serif', 
-      display: 'flex', 
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#1e293b'
-    }}>
-      {view === 'LANDING' ? (
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <h1 style={{ fontSize: '3rem', fontWeight: '900', marginBottom: '20px' }}>
-            LUCID <span style={{ color: '#4f46e5' }}>INVEST</span>
-          </h1>
-          <p style={{ fontSize: '1.2rem', marginBottom: '30px', color: '#64748b' }}>
-            Le déploiement fonctionne enfin !
-          </p>
-          <button 
-            onClick={() => setView('DASHBOARD')}
-            style={{ 
-              backgroundColor: '#4f46e5', 
-              color: 'white', 
-              border: 'none', 
-              padding: '15px 30px', 
-              borderRadius: '12px', 
-              fontWeight: 'bold',
-              cursor: 'pointer'
+    <div className="min-h-screen bg-slate-50">
+      <Navbar 
+        view={view} 
+        setView={setView} 
+        user={user} 
+        onLogout={handleLogout} 
+        onAuthClick={() => setView('AUTH')} 
+      />
+
+      <main className={view === 'LANDING' || view === 'ALPHA_OPPORTUNITIES' ? '' : 'pt-20'}>
+        {view === 'LANDING' && (
+          <LandingPage onSelectPlan={(tier) => {
+            if (user) {
+              setView('DASHBOARD');
+            } else {
+              setView('AUTH');
+            }
+          }} />
+        )}
+
+        {view === 'AUTH' && (
+          <AuthView 
+            onLogin={handleLogin} 
+            onBack={() => setView('LANDING')} 
+          />
+        )}
+
+        {view === 'DASHBOARD' && user && (
+          <DashboardView 
+            user={user} 
+            globalAnalyses={globalAnalyses} 
+            setView={setView}
+            onReadThesis={(analysis) => {
+              setSelectedAnalysis(analysis);
+              setView('ANALYSIS');
             }}
-          >
-            ENTRER DANS LE DASHBOARD
-          </button>
-        </div>
-      ) : (
-        <div style={{ textAlign: 'center' }}>
-          <h2 style={{ fontSize: '2rem' }}>Tableau de Bord Alpha</h2>
-          <p>Bienvenue sur la nouvelle version.</p>
-          <button onClick={() => setView('LANDING')}>Retour</button>
+          />
+        )}
+
+        {view === 'ANALYSIS' && selectedAnalysis && (
+          <AnalysisView 
+            analysis={selectedAnalysis} 
+            onBack={() => setView('DASHBOARD')} 
+          />
+        )}
+
+        {view === 'ACCOUNT' && user && (
+          <AccountView 
+            user={user} 
+            onUpdateUser={(updated) => setUser({ ...user, ...updated })} 
+          />
+        )}
+
+        {view === 'GUIDE' && <GuideView />}
+
+        {view === 'ADMIN' && user?.role === 'ADMIN' && (
+          <AdminBackoffice 
+            users={[]} 
+            analyses={globalAnalyses} 
+            onAddAnalysis={(a) => setGlobalAnalyses(dbService.saveAnalysis(a))}
+            onDeleteAnalysis={(t, m) => setGlobalAnalyses(dbService.deleteAnalysis(t, m))}
+            onBack={() => setView('DASHBOARD')} 
+          />
+        )}
+      </main>
+
+      {/* Loader stylisé LucidInvest */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-white/90 backdrop-blur-xl flex flex-col items-center justify-center z-[100]">
+          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="font-black text-indigo-600 uppercase tracking-widest">Chargement LucidInvest...</p>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default App;
