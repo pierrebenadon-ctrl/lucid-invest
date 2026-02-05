@@ -1,26 +1,12 @@
-{
-  "name": "lucid-invest",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "latest",
-    "react-dom": "latest",
-    "@supabase/supabase-client": "latest",
-    "@google/generative-ai": "latest",
-    "lucide-react": "latest"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest"
-  },
-  "engines": {
-    "node": "20.x"
-  }
-}
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('Failed to find the root element');
+
+ReactDOM.createRoot(rootElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+)
