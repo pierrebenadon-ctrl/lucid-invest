@@ -1,147 +1,78 @@
-import React, { useState, useEffect, useMemo } from 'react';
-// Import des composants que tu as dans ton dossier /components
-import { LandingPage } from './components/LandingPage';
-import { AuthView } from './components/AuthView';
-import { DashboardView } from './components/DashboardView';
-import { AccountView } from './components/AccountView';
-import { AnalysisView } from './components/AnalysisView';
-import { GuideView } from './components/GuideView';
-import { AdminBackoffice } from './components/AdminBackoffice';
-import { AlphaOpportunitiesView } from './components/AlphaOpportunitiesView';
-import { Navbar } from './components/Navbar';
+import React, { useState, useEffect } from 'react';
 
-import { ViewState, User, UserTier, StockAnalysis } from './types';
-import { dbService } from './services/dbService';
-import { automationService, getCurrentMonthYear } from './services/automationService';
+// --- TYPES ---
+type ViewState = 'LANDING' | 'AUTH' | 'DASHBOARD';
+interface User { email: string; tier: string; }
 
-const ADMIN_EMAILS = ['pierre.benadon@gmail.com', 'admin@lucidinvest.fr'];
+// --- COMPOSANT NAVBAR ---
+const Navbar = ({ setView, user }: any) => (
+  <nav className="fixed top-0 w-full h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-50 px-6 flex justify-between items-center">
+    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
+      <div className="bg-indigo-600 p-2 rounded-lg text-white font-bold">L</div>
+      <span className="font-black text-xl tracking-tighter text-slate-900">LUCID INVEST</span>
+    </div>
+    <div>
+      {user ? (
+        <button onClick={() => setView('DASHBOARD')} className="text-sm font-bold text-indigo-600">Mon Dashboard</button>
+      ) : (
+        <button onClick={() => setView('AUTH')} className="bg-indigo-600 text-white px-5 py-2 rounded-full text-sm font-bold">Connexion</button>
+      )}
+    </div>
+  </nav>
+);
 
-const App: React.FC = () => {
+// --- COMPOSANT LANDING ---
+const LandingPage = ({ onStart }: any) => (
+  <div className="text-center py-20 animate-in fade-in duration-700">
+    <h1 className="text-6xl font-black tracking-tight mb-6">L'investissement <span className="text-indigo-600">Lucide.</span></h1>
+    <p className="text-xl text-slate-600 mb-10 max-w-2xl mx-auto">Le radar Alpha pour détecter les opportunités avant tout le monde.</p>
+    <button onClick={onStart} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl hover:scale-105 transition">DEMARRER MAINTENANT</button>
+  </div>
+);
+
+// --- MAIN APP ---
+export default function App() {
   const [view, setView] = useState<ViewState>('LANDING');
   const [user, setUser] = useState<User | null>(null);
-  const [selectedAnalysis, setSelectedAnalysis] = useState<StockAnalysis | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [globalAnalyses, setGlobalAnalyses] = useState<StockAnalysis[]>([]);
 
-  // Initialisation des données au chargement
-  useEffect(() => {
-    const initApp = async () => {
-      const currentAnalyses = dbService.getAnalyses();
-      setGlobalAnalyses(currentAnalyses);
-      
-      const sessionUser = dbService.getCurrentUser();
-      if (sessionUser) setUser(sessionUser);
-    };
-    initApp();
-  }, []);
-
-  // Gestion de la connexion
-  const handleLogin = (email: string, pass: string, tier: UserTier) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        email,
-        tier: isAdmin ? UserTier.ALPHA : tier,
-        role: isAdmin ? 'ADMIN' : 'USER',
-        status: 'ACTIVE',
-        hasCryptoOption: true,
-        alphaOppsRemaining: 5,
-        trackedOpportunities: [],
-        claimedMonths: [getCurrentMonthYear()],
-        signupDate: new Date().toLocaleDateString()
-      };
-      setUser(newUser);
-      dbService.saveUser(newUser);
-      dbService.setSession(newUser);
-      setView('DASHBOARD');
-      setIsLoading(false);
-    }, 1500);
-  };
-
-  const handleLogout = () => {
-    dbService.logout();
-    setUser(null);
-    setView('LANDING');
+  const handleLogin = () => {
+    setUser({ email: 'investisseur@lucide.fr', tier: 'ALPHA' });
+    setView('DASHBOARD');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar 
-        view={view} 
-        setView={setView} 
-        user={user} 
-        onLogout={handleLogout} 
-        onAuthClick={() => setView('AUTH')} 
-      />
-
-      <main className={view === 'LANDING' || view === 'ALPHA_OPPORTUNITIES' ? '' : 'pt-20'}>
-        {view === 'LANDING' && (
-          <LandingPage onSelectPlan={(tier) => {
-            if (user) {
-              setView('DASHBOARD');
-            } else {
-              setView('AUTH');
-            }
-          }} />
-        )}
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      <Navbar setView={setView} user={user} />
+      
+      <main className="pt-24 px-6 max-w-7xl mx-auto">
+        {view === 'LANDING' && <LandingPage onStart={() => setView('AUTH')} />}
 
         {view === 'AUTH' && (
-          <AuthView 
-            onLogin={handleLogin} 
-            onBack={() => setView('LANDING')} 
-          />
+          <div className="max-w-md mx-auto bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100">
+            <h2 className="text-2xl font-bold mb-6 text-center">Connexion</h2>
+            <input type="email" placeholder="email@exemple.com" className="w-full p-4 bg-slate-50 border rounded-xl mb-4" />
+            <button onClick={handleLogin} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold">Accéder au Radar</button>
+          </div>
         )}
 
-        {view === 'DASHBOARD' && user && (
-          <DashboardView 
-            user={user} 
-            globalAnalyses={globalAnalyses} 
-            setView={setView}
-            onReadThesis={(analysis) => {
-              setSelectedAnalysis(analysis);
-              setView('ANALYSIS');
-            }}
-          />
-        )}
-
-        {view === 'ANALYSIS' && selectedAnalysis && (
-          <AnalysisView 
-            analysis={selectedAnalysis} 
-            onBack={() => setView('DASHBOARD')} 
-          />
-        )}
-
-        {view === 'ACCOUNT' && user && (
-          <AccountView 
-            user={user} 
-            onUpdateUser={(updated) => setUser({ ...user, ...updated })} 
-          />
-        )}
-
-        {view === 'GUIDE' && <GuideView />}
-
-        {view === 'ADMIN' && user?.role === 'ADMIN' && (
-          <AdminBackoffice 
-            users={[]} 
-            analyses={globalAnalyses} 
-            onAddAnalysis={(a) => setGlobalAnalyses(dbService.saveAnalysis(a))}
-            onDeleteAnalysis={(t, m) => setGlobalAnalyses(dbService.deleteAnalysis(t, m))}
-            onBack={() => setView('DASHBOARD')} 
-          />
+        {view === 'DASHBOARD' && (
+          <div className="animate-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-3xl font-black mb-8">Tableau de Bord Alpha</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                <span className="text-xs font-bold text-indigo-600">TECH</span>
+                <h3 className="text-xl font-bold mt-2">NVIDIA (NVDA)</h3>
+                <p className="text-slate-500 mt-4 text-sm">Analyse en cours : Les puces Blackwell dominent le marché.</p>
+              </div>
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                <span className="text-xs font-bold text-amber-600">CRYPTO</span>
+                <h3 className="text-xl font-bold mt-2">BITCOIN (BTC)</h3>
+                <p className="text-slate-500 mt-4 text-sm">Objectif 100k : Analyse des flux institutionnels.</p>
+              </div>
+            </div>
+          </div>
         )}
       </main>
-
-      {/* Loader stylisé LucidInvest */}
-      {isLoading && (
-        <div className="fixed inset-0 bg-white/90 backdrop-blur-xl flex flex-col items-center justify-center z-[100]">
-          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="font-black text-indigo-600 uppercase tracking-widest">Chargement LucidInvest...</p>
-        </div>
-      )}
     </div>
   );
-};
-
-export default App;
+}
