@@ -1,132 +1,121 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Sparkles, Send, Settings2, History, ChevronDown, Menu } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { TrendingUp, Shield, Zap, Search, User as UserIcon, LogOut, LayoutDashboard, Target, BookOpen, Settings, ChevronRight } from 'lucide-react';
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+// --- TYPES ---
+type ViewState = 'LANDING' | 'AUTH' | 'DASHBOARD' | 'ACCOUNT' | 'ANALYSIS' | 'GUIDE' | 'ADMIN' | 'ALPHA_OPPORTUNITIES';
+enum UserTier { ALPHA = 'ALPHA', ALPHA_JUNIOR = 'ALPHA_JUNIOR', MINI_BETA = 'MINI_BETA' }
+interface User {
+  id: string; email: string; tier: UserTier; role: 'ADMIN' | 'USER';
+  status: 'ACTIVE'; hasCryptoOption: boolean; alphaOppsRemaining: number;
+  trackedOpportunities: string[]; claimedMonths: string[]; signupDate: string;
+}
+interface StockAnalysis {
+  ticker: string; name: string; sector: string; importanceRank: number; lastUpdate: string; thesis: string;
+}
 
-function App() {
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+// --- MOCK SERVICES (Simulés pour fonctionner direct) ---
+const getCurrentMonthYear = () => `${new Date().getMonth() + 1}/${new Date().getFullYear()}`;
+const dbService = {
+  getUsers: () => JSON.parse(localStorage.getItem('u') || '[]'),
+  saveUser: (u: any) => localStorage.setItem('u', JSON.stringify([u])),
+  getCurrentUser: () => JSON.parse(localStorage.getItem('s') || 'null'),
+  setSession: (u: any) => localStorage.setItem('s', JSON.stringify(u)),
+  getAnalyses: () => [
+    { ticker: 'NVDA', name: 'Nvidia', sector: 'TECH', importanceRank: 1, lastUpdate: getCurrentMonthYear(), thesis: 'IA Boom' },
+    { ticker: 'BTC', name: 'Bitcoin', sector: 'CRYPTO', importanceRank: 2, lastUpdate: getCurrentMonthYear(), thesis: 'Digital Gold' }
+  ]
+};
 
-  const handleAskIA = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = input;
-    setInput('');
-    setMessages([...messages, { role: 'user', text: userMsg }]);
-    setLoading(true);
+// --- COMPOSANTS INTERNES ---
 
-    try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(userMsg);
-      const text = result.response.text();
-      setMessages(prev => [...prev, { role: 'model', text: text }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'model', text: "Erreur : Vérifiez votre clé API dans Vercel." }]);
-    } finally {
-      setLoading(false);
-    }
+const Navbar = ({ view, setView, user, onLogout }: any) => (
+  <nav className="fixed top-0 w-full h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-50 px-6 flex justify-between items-center">
+    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
+      <div className="bg-indigo-600 p-1.5 rounded-lg text-white"><TrendingUp size={20} /></div>
+      <span className="font-black text-xl tracking-tighter text-slate-900">LUCID INVEST</span>
+    </div>
+    <div className="flex items-center gap-4">
+      {user ? (
+        <>
+          <button onClick={() => setView('DASHBOARD')} className="text-sm font-medium text-slate-600 hover:text-indigo-600">Dashboard</button>
+          <button onClick={onLogout} className="p-2 text-slate-400 hover:text-red-500"><LogOut size={20} /></button>
+        </>
+      ) : (
+        <button onClick={() => setView('AUTH')} className="bg-indigo-600 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-indigo-700 transition">Connexion</button>
+      )}
+    </div>
+  </nav>
+);
+
+// --- MAIN APP ---
+const App: React.FC = () => {
+  const [view, setView] = useState<ViewState>('LANDING');
+  const [user, setUser] = useState<User | null>(null);
+  const [globalAnalyses] = useState<StockAnalysis[]>(dbService.getAnalyses());
+
+  const handleLogin = (email: string) => {
+    const newUser: User = {
+      id: '1', email, tier: UserTier.ALPHA, role: 'USER', status: 'ACTIVE',
+      hasCryptoOption: true, alphaOppsRemaining: 5, trackedOpportunities: [],
+      claimedMonths: [], signupDate: '05/02/2026'
+    };
+    setUser(newUser);
+    dbService.setSession(newUser);
+    setView('DASHBOARD');
   };
 
   return (
-    <div className="flex h-screen bg-[#131314] text-[#e3e3e3] font-sans overflow-hidden">
+    <div className="min-h-screen bg-slate-50 font-['Inter'] text-slate-900">
+      <Navbar view={view} setView={setView} user={user} onLogout={() => {setUser(null); setView('LANDING');}} />
       
-      {/* SIDEBAR GAUCHE (Style Studio) */}
-      <aside className="w-[280px] bg-[#1e1f20] border-r border-[#333537] flex flex-col hidden lg:flex">
-        <div className="p-4">
-          <button className="w-full flex items-center justify-center gap-2 bg-[#333537] hover:bg-[#3c3d3e] py-3 rounded-full text-sm font-medium transition">
-            <Menu size={18} /> Nouveau Chat
-          </button>
-        </div>
-        <div className="flex-1 px-4 overflow-y-auto">
-          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-4">Récents</p>
-          <div className="space-y-1">
-             <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#333537] cursor-pointer text-sm truncate">
-               <History size={14} /> Analyse LucidInvest
-             </div>
+      <main className="pt-24 pb-12 px-6 max-w-7xl mx-auto">
+        {/* LANDING PAGE */}
+        {view === 'LANDING' && (
+          <div className="text-center py-20">
+            <h1 className="text-6xl font-black tracking-tight mb-6">L'investissement <span className="text-indigo-600">Lucide.</span></h1>
+            <p className="text-xl text-slate-600 mb-10 max-w-2xl mx-auto">Prenez une longueur d'avance sur le marché avec nos analyses exclusives et notre Radar Alpha.</p>
+            <button onClick={() => setView('AUTH')} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-200 hover:scale-105 transition">DEMARRER L'ANALYSE</button>
           </div>
-        </div>
-        <div className="p-4 border-t border-[#333537] text-xs text-gray-400">
-          LucidInvest v1.0 • Gemini 1.5 Flash
-        </div>
-      </aside>
+        )}
 
-      {/* CONTENU PRINCIPAL */}
-      <main className="flex-1 flex flex-col relative bg-[#131314]">
-        
-        {/* HEADER */}
-        <header className="h-14 flex items-center justify-between px-6 border-b border-[#333537]">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-sm">Gemini 1.5 Flash</span>
-            <ChevronDown size={14} className="text-gray-500" />
+        {/* AUTH VIEW */}
+        {view === 'AUTH' && (
+          <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+            <h2 className="text-2xl font-bold mb-6">Heureux de vous revoir</h2>
+            <input type="email" placeholder="votre@email.com" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 outline-none focus:ring-2 focus:ring-indigo-600" />
+            <button onClick={() => handleLogin('user@test.com')} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold">Continuer</button>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-[#333537] rounded-full"><Settings2 size={20} /></button>
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">PB</div>
-          </div>
-        </header>
+        )}
 
-        {/* ZONE DE CHAT */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-20 py-10 space-y-8 scrollbar-hide">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-600 rounded-xl animate-pulse" />
-              <h2 className="text-2xl font-medium">Comment puis-je vous aider ?</h2>
+        {/* DASHBOARD VIEW */}
+        {view === 'DASHBOARD' && user && (
+          <div className="space-y-8">
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-3xl font-black uppercase tracking-tight">Tableau de Bord</h2>
+                <p className="text-slate-500 font-medium">Bienvenue, {user.email}</p>
+              </div>
+              <div className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Tier: {user.tier}</div>
             </div>
-          ) : (
-            messages.map((msg, i) => (
-              <div key={i} className={`flex gap-6 ${msg.role === 'user' ? 'bg-[#1e1f20]/50 p-6 rounded-2xl border border-[#333537]' : ''}`}>
-                <div className="mt-1">
-                  {msg.role === 'user' ? <UserIcon /> : <Sparkles className="text-blue-400" size={20} />}
-                </div>
-                <div className="flex-1 prose prose-invert max-w-none text-[15px] leading-relaxed">
-                  {msg.text}
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={chatEndRef} />
-        </div>
 
-        {/* INPUT (Le fameux bloc de saisie Studio) */}
-        <div className="p-4 md:px-20 pb-8">
-          <div className="max-w-4xl mx-auto bg-[#1e1f20] border border-[#333537] rounded-2xl focus-within:ring-1 focus-within:ring-[#4d4d4e] transition-all">
-            <textarea
-              className="w-full bg-transparent p-4 outline-none resize-none min-h-[100px] text-[15px] placeholder-gray-500"
-              placeholder="Saisissez du texte ici..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAskIA();
-                }
-              }}
-            />
-            <div className="flex items-center justify-between p-3 border-t border-[#333537]">
-              <div className="text-[11px] text-gray-500 px-2 italic">
-                Appuyez sur Entrée pour envoyer
-              </div>
-              <button 
-                onClick={handleAskIA}
-                disabled={loading || !input}
-                className={`p-2 rounded-lg transition ${input ? 'bg-blue-600 text-white' : 'text-gray-600 cursor-not-allowed'}`}
-              >
-                <Send size={18} />
-              </button>
+            <div className="grid md:grid-cols-3 gap-6">
+              {globalAnalyses.map(a => (
+                <div key={a.ticker} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition">
+                  <div className="flex justify-between mb-4">
+                    <span className="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600">{a.sector}</span>
+                    <span className="text-indigo-600 font-black">{a.ticker}</span>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">{a.name}</h3>
+                  <p className="text-sm text-slate-500 mb-6">{a.thesis}</p>
+                  <button className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm">Lire la Thèse</button>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );
-}
-
-const UserIcon = () => (
-  <div className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-[10px] font-bold uppercase">
-    PB
-  </div>
-);
+};
 
 export default App;
