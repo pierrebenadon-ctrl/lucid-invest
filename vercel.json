@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "installCommand": "npm install --force",
+  "installCommand": "npm install --no-package-lock --legacy-peer-deps",
   "buildCommand": "vite build",
   "outputDirectory": "dist"
 }
